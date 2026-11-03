@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0512">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>鱿鱼游戏 · 像素闯关</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{
+    height:100%;background:#04030a;overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,"Courier New",monospace;
+    color:#ffe9c9;
+  }
+  body{display:grid;place-items:center;
+    background:radial-gradient(circle at 50% 32%,#1e0b28 0%,#04030a 72%);}
+
+  #frame{
+    position:relative;overflow:hidden;background:#0d0716;
+    width:min(100vw,calc(100vh * .5625));
+    height:min(100vh,calc(100vw * 1.77778));
+    font-size:calc(var(--u,1) * 10px);
+    box-shadow:0 0 0 1px #2a1230,0 1.5em 6em rgba(0,0,0,.85),0 0 4em rgba(255,46,99,.08);
+  }
+  @supports (height:100dvh){
+    #frame{width:min(100vw,calc(100dvh * .5625));height:min(100dvh,calc(100vw * 1.77778));}
+  }
+  canvas#bg{position:absolute;inset:0;width:100%;height:100%;display:block;
+    image-rendering:pixelated;image-rendering:crisp-edges;}
+  .scan{position:absolute;inset:0;pointer-events:none;z-index:3;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.13) 0 1px,transparent 1px 4px);}
+
+  .wrap{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;
+    padding:2.4em 1.5em 1.5em;}
+
+  /* ---------- 标题 ---------- */
+  .head{text-align:center;margin-bottom:2.2em;}
+  .tag{font-size:1em;letter-spacing:.46em;color:#ff6b93;opacity:.9;margin-bottom:1.1em;
+    text-shadow:0 0 .8em rgba(255,46,99,.7);}
+  .logo{font-size:4.3em;line-height:1.06;letter-spacing:.12em;font-weight:800;color:#fff6ea;
+    text-shadow:.05em .05em 0 #ff2e63,.1em .1em 0 rgba(0,0,0,.65),0 0 1.6em rgba(255,46,99,.45);}
+  .sub{margin-top:.85em;font-size:1.15em;letter-spacing:.42em;color:#b58ca2;opacity:.85;}
+
+  /* ---------- 关卡列表 ---------- */
+  .list{flex:1;display:flex;flex-direction:column;justify-content:space-evenly;
+    gap:.7em;padding:1.2em 0;}
+  .lv{
+    position:relative;display:flex;align-items:center;gap:1em;
+    padding:.78em 1em;min-height:4.35em;text-decoration:none;
+    background:linear-gradient(100deg,rgba(255,46,99,.10),rgba(255,255,255,.028) 45%);
+    border:.14em solid rgba(255,140,175,.30);
+    box-shadow:inset 0 0 0 .1em rgba(0,0,0,.35),0 .25em 0 rgba(0,0,0,.35);
+    transition:transform .08s,border-color .16s,box-shadow .16s,background .16s;
+    overflow:hidden;
+  }
+  .lv::after{content:'';position:absolute;left:0;top:0;bottom:0;width:.34em;
+    background:linear-gradient(180deg,#ff2e63,#ff9f43);opacity:.85;}
+  .lv .num{font-size:2em;font-weight:800;color:rgba(255,150,185,.5);
+    letter-spacing:.02em;line-height:1;min-width:2.1em;text-align:center;}
+  .lv .info{flex:1;display:flex;flex-direction:column;gap:.35em;min-width:0;}
+  .lv .info b{font-size:1.5em;font-weight:800;color:#ffe9c9;letter-spacing:.08em;}
+  .lv .info i{font-style:normal;font-size:1.02em;color:#a8849b;letter-spacing:.06em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .lv .go{font-size:1.9em;color:#ff6b93;opacity:.9;padding-left:.2em;}
+  .lv .badge{font-size:.95em;letter-spacing:.16em;color:#ffd166;
+    border:.12em solid rgba(255,209,102,.45);padding:.18em .5em;
+    text-shadow:0 0 .5em rgba(255,209,102,.6);}
+
+  a.lv:active{transform:scale(.975);border-color:#ff2e63;
+    box-shadow:0 0 1.4em rgba(255,46,99,.45),inset 0 0 1.2em rgba(255,46,99,.12);}
+  .lv.lock{opacity:.42;filter:grayscale(.35);}
+  .lv.lock::after{background:linear-gradient(180deg,#5a4450,#3a2630);}
+  .lv.lock .info b{color:#c4a9b6;}
+  .lv.lock .num{color:rgba(255,255,255,.28);}
+
+  /* ---------- 底部 ---------- */
+  .foot{flex:none;text-align:center;font-size:1.02em;letter-spacing:.18em;
+    color:#7d5f72;padding-top:1.2em;}
+  .foot b{color:#ff9dc0;font-weight:700;}
+
+  .fadein{animation:fadeUp .5s ease both;}
+  .d1{animation-delay:.05s}.d2{animation-delay:.12s}.d3{animation-delay:.19s}
+  .d4{animation-delay:.26s}.d5{animation-delay:.33s}.d6{animation-delay:.4s}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(1.2em)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div id="frame">
+  <canvas id="bg"></canvas>
+  <div class="scan"></div>
+
+  <div class="wrap">
+    <div class="head fadein d1">
+      <div class="tag">SQUID GAME · PIXEL</div>
+      <div class="logo">鱿鱼游戏</div>
+      <div class="sub">选择关卡</div>
+    </div>
+
+    <div class="list">
+      <a class="lv fadein d2" href="squid-game-1-2-3.html">
+        <span class="num">01</span>
+        <span class="info">
+          <b>一二三 · 木头人</b>
+          <i>按住前进，娃娃回头时千万别动</i>
+        </span>
+        <span class="go">›</span>
+      </a>
+
+      <a class="lv fadein d3" href="squid-game-2-ppopgi.html">
+        <span class="num">02</span>
+        <span class="info">
+          <b>椪　糖</b>
+          <i>用针沿边缘描 10 圈，别戳断</i>
+        </span>
+        <span class="go">›</span>
+      </a>
+
+      <a class="lv fadein d4" href="squid-game-3-tugofwar.html">
+        <span class="num">03</span>
+        <span class="info">
+          <b>拔　河</b>
+          <i>卡准力度条，把对手拖进深坑</i>
+        </span>
+        <span class="go">›</span>
+      </a>
+
+      <a class="lv fadein d5" href="squid-game-4-marbles.html">
+        <span class="num">04</span>
+        <span class="info">
+          <b>弹　珠</b>
+          <i>轮流坐庄，猜单双赢走对手的弹珠</i>
+        </span>
+        <span class="go">›</span>
+      </a>
+
+      <a class="lv fadein d6" href="squid-game-5-glassbridge.html">
+        <span class="num">05</span>
+        <span class="info">
+          <b>玻 璃 桥</b>
+          <i>10 组玻璃，一步踩空就没了</i>
+        </span>
+        <span class="go">›</span>
+      </a>
+
+      <a class="lv fadein d7" href="squid-game-6-octopus.html">
+        <span class="num">06</span>
+        <span class="info">
+          <b>章　鱼</b>
+          <i>躲开弹幕，把海里的东西打下来</i>
+        </span>
+        <span class="go">›</span>
+      </a>
+    </div>
+
+    <div class="foot fadein d7">点击关卡进入 · 竖屏游玩</div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+const W=360,H=640;
+const cvs=document.getElementById('bg');
+const ctx=cvs.getContext('2d');
+const RS=2;
+cvs.width=W*RS; cvs.height=H*RS;
+ctx.setTransform(RS,0,0,RS,0,0);
+ctx.imageSmoothingEnabled=false;
+
+const frame=document.getElementById('frame');
+function fit(){
+  const r=frame.getBoundingClientRect();
+  frame.style.setProperty('--u',(r.width/360).toFixed(4));
+}
+window.addEventListener('resize',fit);
+window.addEventListener('orientationchange',()=>setTimeout(fit,120));
+fit();
+
+const rnd=(a,b)=>a+Math.random()*(b-a);
+
+/* 漂浮尘埃 */
+const dust=[];
+for(let i=0;i<70;i++){
+  dust.push({
+    x:rnd(0,W), y:rnd(0,H), r:Math.random()<.25?2:1,
+    vy:rnd(-14,-4), vx:rnd(-4,4), a:rnd(.15,.55), ph:rnd(0,6.28)
+  });
+}
+
+let t=0;
+function draw(){
+  // 背景
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#160a22');
+  g.addColorStop(.42,'#24102f');
+  g.addColorStop(1,'#08040e');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+  // 粉色光晕
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+  const rg=ctx.createRadialGradient(180,210,20,180,210,240);
+  rg.addColorStop(0,'rgba(255,60,110,.16)');
+  rg.addColorStop(.55,'rgba(255,46,99,.05)');
+  rg.addColorStop(1,'rgba(255,46,99,0)');
+  ctx.fillStyle=rg; ctx.fillRect(0,0,W,H);
+  ctx.restore();
+
+  // 几何线框（圆圈 / 三角 / 方块，很淡地旋转）
+  ctx.save();
+  ctx.translate(180,206);
+  ctx.strokeStyle='rgba(255,120,160,.10)';
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(0,0,132,0,6.2832); ctx.stroke();
+
+  ctx.strokeStyle='rgba(255,120,160,.07)';
+  ctx.rotate(t*0.12);
+  ctx.beginPath();
+  for(let i=0;i<3;i++){
+    const a=-Math.PI/2 + i*Math.PI*2/3;
+    const x=Math.cos(a)*150, y=Math.sin(a)*150;
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  }
+  ctx.closePath(); ctx.stroke();
+
+  ctx.strokeStyle='rgba(255,120,160,.06)';
+  ctx.rotate(-t*0.22);
+  ctx.beginPath();
+  for(let i=0;i<4;i++){
+    const a=Math.PI/4 + i*Math.PI/2;
+    const x=Math.cos(a)*118, y=Math.sin(a)*118;
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  }
+  ctx.closePath(); ctx.stroke();
+  ctx.restore();
+
+  // 尘埃
+  for(const d of dust){
+    d.x+=d.vx*0.016 + Math.sin(t*0.8+d.ph)*0.12;
+    d.y+=d.vy*0.016;
+    if(d.y<-6){ d.y=H+6; d.x=rnd(0,W); }
+    if(d.x<-6) d.x=W+6;
+    if(d.x>W+6) d.x=-6;
+    const a=d.a*(0.6+0.4*Math.sin(t*1.6+d.ph));
+    ctx.fillStyle='rgba(255,190,215,'+a.toFixed(3)+')';
+    ctx.fillRect(Math.round(d.x),Math.round(d.y),d.r,d.r);
+  }
+
+  // 暗角
+  const vg=ctx.createRadialGradient(180,300,180,180,300,430);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(0,0,0,.72)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+}
+
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(.05,(now-last)/1000);
+  last=now; t+=dt;
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
