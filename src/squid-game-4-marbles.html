@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0512">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>第四关 · 弹珠</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{
+    height:100%;background:#04030a;overflow:hidden;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,"Courier New",monospace;
+    color:#ffe9c9;
+  }
+  body{display:grid;place-items:center;
+    background:radial-gradient(circle at 50% 35%,#1a0a24 0%,#04030a 70%);}
+
+  #frame{
+    position:relative;overflow:hidden;background:#0d0716;
+    width:min(100vw,calc(100vh * .5625));
+    height:min(100vh,calc(100vw * 1.77778));
+    font-size:calc(var(--u,1) * 10px);
+    box-shadow:0 0 0 1px #2a1230,0 1.5em 6em rgba(0,0,0,.85),0 0 4em rgba(255,46,99,.08);
+    touch-action:none;
+  }
+  @supports (height:100dvh){
+    #frame{width:min(100vw,calc(100dvh * .5625));height:min(100dvh,calc(100vw * 1.77778));}
+  }
+  canvas#game{position:absolute;inset:0;width:100%;height:100%;display:block;
+    image-rendering:pixelated;image-rendering:crisp-edges;touch-action:none;}
+
+  /* ---------------- HUD ---------------- */
+  .hud{position:absolute;left:0;right:0;top:0;z-index:5;pointer-events:none;
+    padding:1.05em .85em .5em;
+    background:linear-gradient(180deg,rgba(6,2,12,.78) 0%,rgba(6,2,12,.3) 62%,rgba(6,2,12,0) 100%);}
+  .hud-row{display:flex;justify-content:space-between;align-items:flex-start;gap:.4em;}
+  .chip{flex:1;display:flex;flex-direction:column;align-items:center;gap:.06em;
+    padding:.34em .2em .3em;min-width:0;
+    background:rgba(10,4,18,.66);
+    border:.14em solid rgba(255,120,166,.3);
+    box-shadow:inset 0 0 0 .1em rgba(255,46,99,.08),0 .22em 0 rgba(0,0,0,.4);
+    transition:border-color .2s,box-shadow .2s;}
+  .chip .k{font-size:.86em;letter-spacing:.14em;color:#ff9dc0;opacity:.85;line-height:1;}
+  .chip .v{font-size:1.95em;line-height:1.1;font-weight:700;color:#ffe9c9;
+    letter-spacing:.02em;font-variant-numeric:tabular-nums;}
+  .chip.you{border-color:rgba(34,201,180,.4);}
+  .chip.you .k{color:#5ff0d8;}
+  .chip.you .v{color:#7ef2df;}
+  .chip.foe{border-color:rgba(255,120,166,.45);}
+  .chip.foe .v{color:#ff9dc0;}
+  .chip.round{border-color:rgba(255,209,102,.3);}
+  .chip.round .k{color:#ffd166;}
+  .chip.round .v{color:#ffd166;font-size:1.8em;}
+  .chip .v.low{color:#ff3d63;animation:blink .7s steps(1,end) infinite;}
+  .chip .v.bump{animation:bump .34s ease-out;}
+  @keyframes blink{50%{opacity:.22}}
+  @keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.32)}100%{transform:scale(1)}}
+
+  /* ---------------- 操作区 ---------------- */
+  .action{
+    position:absolute;left:0;right:0;bottom:0;z-index:7;
+    padding:1.1em 1.5em 1.5em;
+    display:flex;flex-direction:column;gap:.62em;
+    background:linear-gradient(180deg,rgba(6,2,12,0) 0%,rgba(6,2,12,.9) 24%,rgba(6,2,12,.985) 100%);
+    opacity:0;pointer-events:none;transform:translateY(.8em);
+    transition:opacity .22s,transform .22s;
+  }
+  .action.on{opacity:1;pointer-events:auto;transform:translateY(0);}
+  .act-title{text-align:center;font-size:1.16em;letter-spacing:.22em;color:#c4a3b8;}
+  .act-title b{color:#ffd166;}
+
+  /* 赌注选择 */
+  .bet-row{display:flex;align-items:center;justify-content:center;gap:1.1em;}
+  .step-btn{
+    width:2.9em;height:2.9em;flex:none;
+    font-family:inherit;font-size:2.1em;font-weight:800;line-height:1;
+    color:#ffe9c9;cursor:pointer;
+    background:linear-gradient(180deg,#3a2340,#241329);
+    border:.14em solid rgba(255,140,175,.5);border-bottom-width:.4em;border-radius:.45em;
+    box-shadow:0 .3em 0 rgba(0,0,0,.4);
+    transition:transform .06s,box-shadow .06s,border-bottom-width .06s,filter .15s;
+  }
+  .step-btn:active:not(:disabled){transform:translateY(.22em);border-bottom-width:.18em;
+    box-shadow:0 .08em 0 rgba(0,0,0,.4);filter:brightness(1.2);}
+  .step-btn:disabled{opacity:.26;}
+  .bet-val{display:flex;align-items:baseline;gap:.12em;min-width:4.4em;justify-content:center;}
+  .bet-val b{font-size:4.1em;line-height:1;font-weight:800;color:#ffd166;
+    text-shadow:0 0 .5em rgba(255,209,102,.5);font-variant-numeric:tabular-nums;}
+  .bet-val i{font-size:1.1em;font-style:normal;letter-spacing:.1em;color:#8d6d84;}
+
+  /* 主按钮 */
+  .main-btn{
+    width:100%;padding:.72em 0;font-family:inherit;font-size:1.72em;font-weight:800;
+    letter-spacing:.2em;color:#fff6ef;cursor:pointer;
+    background:linear-gradient(180deg,#ff4b7d 0%,#e01f5c 55%,#c01149 100%);
+    border:.18em solid #ff9fbc;border-bottom-width:.46em;border-radius:.55em;
+    box-shadow:0 .34em 0 rgba(0,0,0,.45),inset 0 .16em 0 rgba(255,255,255,.3);
+    text-shadow:0 .1em 0 rgba(0,0,0,.4);
+    transition:transform .06s,box-shadow .06s,border-bottom-width .06s,filter .15s;
+  }
+  .main-btn:active{transform:translateY(.24em);border-bottom-width:.22em;
+    box-shadow:0 .1em 0 rgba(0,0,0,.45);filter:brightness(1.12);}
+
+  /* 单双按钮 */
+  .guess-row{display:flex;gap:.7em;}
+  .guess-btn{
+    flex:1;padding:.62em 0 .55em;font-family:inherit;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:.06em;
+    background:linear-gradient(180deg,#3a2340,#241329);
+    border:.16em solid rgba(255,140,175,.45);border-bottom-width:.42em;border-radius:.55em;
+    box-shadow:0 .3em 0 rgba(0,0,0,.42);
+    transition:transform .06s,box-shadow .06s,border-bottom-width .06s,filter .15s;
+  }
+  .guess-btn b{font-size:2.5em;line-height:1.1;font-weight:800;letter-spacing:.1em;color:#ffe9c9;}
+  .guess-btn i{font-size:.92em;font-style:normal;letter-spacing:.3em;color:#8d6d84;}
+  .guess-btn.odd{border-color:rgba(255,159,67,.55);
+    background:linear-gradient(180deg,#4a2a1c,#2a160f);}
+  .guess-btn.odd b{color:#ffb765;}
+  .guess-btn.even{border-color:rgba(34,201,180,.55);
+    background:linear-gradient(180deg,#123a38,#0a2220);}
+  .guess-btn.even b{color:#7ef2df;}
+  .guess-btn:active{transform:translateY(.2em);border-bottom-width:.2em;
+    box-shadow:0 .08em 0 rgba(0,0,0,.42);filter:brightness(1.2);}
+  .guess-btn.locked{pointer-events:none;opacity:.9;
+    box-shadow:0 0 1.2em rgba(255,159,67,.35),0 .3em 0 rgba(0,0,0,.42);}
+
+  /* 上帝之眼 */
+  .eye-btn{
+    width:100%;padding:.52em 0;font-family:inherit;cursor:pointer;
+    font-size:1.24em;letter-spacing:.2em;font-weight:700;
+    color:#c9b3ff;
+    background:linear-gradient(180deg,rgba(72,42,110,.9),rgba(36,20,58,.95));
+    border:.14em solid rgba(170,130,255,.55);border-radius:.5em;
+    box-shadow:0 0 1.1em rgba(150,110,255,.3),inset 0 .12em 0 rgba(255,255,255,.12);
+    animation:eyePulse 2.2s ease-in-out infinite;
+  }
+  @keyframes eyePulse{0%,100%{box-shadow:0 0 1em rgba(150,110,255,.24),inset 0 .12em 0 rgba(255,255,255,.12);}
+    50%{box-shadow:0 0 2em rgba(180,140,255,.62),inset 0 .12em 0 rgba(255,255,255,.2);}}
+  .eye-btn:active{filter:brightness(1.3);}
+
+  .act-hint{text-align:center;font-size:1em;letter-spacing:.12em;color:#8d6d84;line-height:1.5;}
+  .act-hint b{color:#ffd166;}
+  .act-hint.warn{color:#ff9dc0;}
+
+  /* ---------------- 提示 / 遮罩 ---------------- */
+  .toast{position:absolute;left:50%;top:53%;transform:translate(-50%,-50%) scale(.85);
+    z-index:8;pointer-events:none;opacity:0;font-size:1.72em;font-weight:800;letter-spacing:.06em;
+    color:#fff;text-shadow:0 0 .5em rgba(255,46,99,.9),.06em .06em 0 #b3123c;
+    transition:opacity .16s,transform .16s;white-space:nowrap;
+    padding:.4em .8em;background:rgba(8,3,14,.72);border-radius:.3em;}
+  .toast.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+
+  .overlay{position:absolute;inset:0;z-index:9;display:grid;place-items:center;
+    background:rgba(5,2,10,.78);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+    opacity:0;pointer-events:none;transition:opacity .28s ease;padding:1em;}
+  .overlay.show{opacity:1;pointer-events:auto;}
+  .panel{
+    width:86%;padding:1.9em 1.5em 1.7em;text-align:center;
+    background:linear-gradient(180deg,rgba(28,10,38,.97),rgba(14,5,20,.99));
+    border:.16em solid #ff2e63;
+    box-shadow:0 0 0 .32em rgba(255,46,99,.13),0 0 3em rgba(255,46,99,.25),
+      inset 0 0 3em rgba(255,46,99,.06),0 1.4em 3em rgba(0,0,0,.7);
+    position:relative;
+    background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.026) 0 1px,transparent 1px 3px);
+    animation:pop .3s cubic-bezier(.2,1.4,.4,1) both;
+  }
+  @keyframes pop{from{transform:scale(.88);opacity:0}to{transform:scale(1);opacity:1}}
+  .panel::before,.panel::after{content:'';position:absolute;width:1.3em;height:1.3em;
+    border:.2em solid rgba(255,170,200,.55);pointer-events:none;}
+  .panel::before{left:-.45em;top:-.45em;border-right:0;border-bottom:0;}
+  .panel::after{right:-.45em;bottom:-.45em;border-left:0;border-top:0;}
+  .panel.teal{border-color:#22c9b4;
+    box-shadow:0 0 0 .32em rgba(34,201,180,.13),0 0 3em rgba(34,201,180,.25),
+      inset 0 0 3em rgba(34,201,180,.06),0 1.4em 3em rgba(0,0,0,.7);}
+  .panel.teal::before,.panel.teal::after{border-color:rgba(150,246,230,.55);}
+  .panel-tag{font-size:1.05em;letter-spacing:.42em;color:#ff6b93;margin-bottom:.7em;
+    text-shadow:0 0 .6em rgba(255,46,99,.8);}
+  .panel.teal .panel-tag{color:#5ff0d8;text-shadow:0 0 .6em rgba(34,201,180,.8);}
+  .title{font-size:3em;line-height:1.12;letter-spacing:.14em;color:#fff6ea;font-weight:800;
+    text-shadow:.05em .05em 0 #ff2e63,.1em .1em 0 rgba(0,0,0,.6);margin-bottom:.4em;}
+  .title.small{font-size:2.5em;}
+  .panel.teal .title{text-shadow:.05em .05em 0 #12a08e,.1em .1em 0 rgba(0,0,0,.6);}
+  .desc{font-size:1.2em;line-height:1.74;color:#e5c8d6;letter-spacing:.03em;margin-bottom:1.15em;}
+  .desc b{color:#ffd166;font-size:1.1em;}
+  .desc .num{color:#ff5c86;font-size:1.22em;}
+  .btn{
+    width:100%;padding:.78em 0;font-family:inherit;font-size:1.62em;font-weight:800;
+    letter-spacing:.22em;color:#fff5ee;cursor:pointer;
+    background:linear-gradient(180deg,#ff4b7d,#d4164f);
+    border:.18em solid #ff9fbc;border-bottom-width:.46em;border-radius:.5em;
+    box-shadow:0 .35em 0 rgba(0,0,0,.45),inset 0 .16em 0 rgba(255,255,255,.3);
+    text-shadow:0 .1em 0 rgba(0,0,0,.4);
+    transition:transform .06s,box-shadow .06s;
+  }
+  .btn:active{transform:translateY(.26em);border-bottom-width:.22em;box-shadow:0 .1em 0 rgba(0,0,0,.45);}
+  .btn.teal{background:linear-gradient(180deg,#2fe0c8,#12a08e);border-color:#8ff5e5;}
+  .btn.ghost{background:linear-gradient(180deg,#3a2340,#241329);border-color:rgba(255,140,175,.5);
+    box-shadow:0 .3em 0 rgba(0,0,0,.45);font-size:1.28em;}
+  .btn-row{display:flex;gap:.6em;}
+  .hint{margin-top:1em;font-size:1em;letter-spacing:.14em;color:#8d6d84;}
+  .back-link{display:inline-block;margin-top:.9em;font-size:1em;letter-spacing:.18em;
+    color:#8d6d84;text-decoration:none;padding:.42em .9em;
+    border:.12em solid rgba(255,140,175,.22);
+    transition:color .15s,border-color .15s,background .15s;}
+  .back-link:active{color:#ff9dc0;border-color:#ff2e63;background:rgba(255,46,99,.1);}
+</style>
+</head>
+<body>
+<div id="frame">
+  <canvas id="game"></canvas>
+
+  <div class="hud">
+    <div class="hud-row">
+      <div class="chip round"><span class="k">ROUND</span><span class="v" id="roundVal">1</span></div>
+      <div class="chip you"><span class="k">你</span><span class="v" id="youVal">10</span></div>
+      <div class="chip foe"><span class="k">对手</span><span class="v" id="foeVal">10</span></div>
+      <div class="chip"><span class="k">FAIL</span><span class="v" id="failVal">0</span></div>
+    </div>
+  </div>
+
+  <div class="action" id="action"></div>
+  <div class="toast" id="toast"></div>
+  <div class="overlay" id="overlay"></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ======================================================================
+   0. 基础
+   ====================================================================== */
+const W = 360, H = 640;
+const cvs = document.getElementById('game');
+const ctx = cvs.getContext('2d');
+const RS = 2;
+cvs.width = W * RS; cvs.height = H * RS;
+ctx.setTransform(RS, 0, 0, RS, 0, 0);
+ctx.imageSmoothingEnabled = false;
+
+const frame    = document.getElementById('frame');
+const roundVal = document.getElementById('roundVal');
+const youVal   = document.getElementById('youVal');
+const foeVal   = document.getElementById('foeVal');
+const failVal  = document.getElementById('failVal');
+const overlay  = document.getElementById('overlay');
+const actionEl = document.getElementById('action');
+const toastEl  = document.getElementById('toast');
+
+function fit(){
+  const r = frame.getBoundingClientRect();
+  frame.style.setProperty('--u', (r.width / 360).toFixed(4));
+}
+window.addEventListener('resize', fit);
+window.addEventListener('orientationchange', () => setTimeout(fit, 120));
+
+const clamp = (v,a,b) => v<a?a:(v>b?b:v);
+const pick  = arr => arr[(Math.random()*arr.length)|0];
+
+function shade(hex, amt){
+  // amt > 0 提亮，< 0 压暗
+  const n = parseInt(hex.slice(1), 16);
+  let r = (n>>16)&255, g = (n>>8)&255, b = n&255;
+  if (amt > 0){ r += (255-r)*amt; g += (255-g)*amt; b += (255-b)*amt; }
+  else { r *= (1+amt); g *= (1+amt); b *= (1+amt); }
+  return 'rgb(' + (r|0) + ',' + (g|0) + ',' + (b|0) + ')';
+}
+
+/* ======================================================================
+   1. 常量
+   ====================================================================== */
+const START_M   = 10;    // 双方初始弹珠
+const BET_MAX   = 6;     // 单次赌注上限
+const EYE_LIMIT = 4;     // 弹珠数 <= 4 时可用上帝之眼
+const EYE_TOP   = 5;     // 顶部偏上位置关键字
+const HORIZON   = 214;   // 墙地分界
+const CX        = 180;
+
+const T_AI_THINK = 0.85; // 系统“思考”时长
+const T_REVEAL   = 0.95; // 开奖展示时长
+const T_SETTLE   = 1.05; // 结算动画时长
+
+const P_MARBLE = ['#5ff0d8','#4fc3f7','#8affc1','#a8e6ff','#7ef2df'];
+const E_MARBLE = ['#ff9dc0','#ff6b93','#ffd166','#ff8f6b','#ffc2d6'];
+
+/* ======================================================================
+   2. 状态
+   ====================================================================== */
+const G = {
+  phase:'ready',            // ready | playing | win | lose
+  step:'',                  // playerBet | enemyGuess | playerGuess | reveal | settle
+  round:1,
+  turn:'player',            // 本回合庄家
+  playerM:START_M, enemyM:START_M,
+  bet:0, betMax:BET_MAX, betRevealed:false,
+  playerGuess:null, enemyGuess:null,
+  forced:false, forcedA:0, forcedB:0,
+  lockAuto:false, autoSide:'',
+  eyeUsed:false, eyeThisRound:false,
+  stepTimer:0, revealT:0,
+  result:null,              // { win, delta, parity }
+  shake:0, flash:0, flashColor:'255,240,220',
+  particles:[], flights:[], rings:[],
+  t:0, fails:0,
+  panelShown:false, overT:0,
+  hudPulse:{you:0, foe:0},
+};
+
+/* ======================================================================
+   3. 音效（WebAudio 实时合成，无素材）
+   ====================================================================== */
+let AC = null;
+function ac(){
+  if (!AC){
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ AC = null; }
+  }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(freq, dur, type, vol, slideTo){
+  const a = ac(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(freq, a.currentTime);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, a.currentTime + dur);
+  g.gain.setValueAtTime(0.0001, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(vol || .09, a.currentTime + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+  o.connect(g); g.connect(a.destination);
+  o.start(); o.stop(a.currentTime + dur + .02);
+}
+function noiseBurst(dur, vol, hp){
+  const a = ac(); if (!a) return;
+  const n = a.sampleRate * dur;
+  const buf = a.createBuffer(1, n, a.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i=0;i<n;i++) d[i] = (Math.random()*2-1) * (1 - i/n);
+  const src = a.createBufferSource(); src.buffer = buf;
+  const f = a.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = hp || 1200;
+  const g = a.createGain(); g.gain.value = vol || .07;
+  src.connect(f); f.connect(g); g.connect(a.destination);
+  src.start();
+}
+function sfx(name){
+  switch(name){
+    case 'click':  tone(520,.05,'square',.045,700); break;
+    case 'step':   tone(360,.05,'square',.04,460); break;
+    case 'marble': noiseBurst(.06,.05,2400); tone(1400,.07,'sine',.03,900); break;
+    case 'toss':   noiseBurst(.1,.05,1800); tone(900,.09,'triangle',.04,1500); break;
+    case 'reveal': noiseBurst(.12,.06,1500); tone(600,.16,'triangle',.06,1100); break;
+    case 'odd':    tone(392,.22,'square',.05,523); break;
+    case 'even':   tone(330,.22,'square',.05,494); break;
+    case 'gain':   tone(523,.11,'triangle',.07); setTimeout(()=>tone(659,.11,'triangle',.07),90);
+                   setTimeout(()=>tone(784,.2,'triangle',.08),180); break;
+    case 'lose':   tone(300,.28,'sawtooth',.07,120); noiseBurst(.2,.05,600); break;
+    case 'eye':    tone(180,.5,'sine',.05,900); setTimeout(()=>tone(1200,.3,'sine',.04,600),140); break;
+    case 'win':    [523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,.3,'triangle',.09),i*110)); break;
+    case 'dead':   tone(220,.7,'sawtooth',.09,55); noiseBurst(.5,.08,300); break;
+  }
+}
+
+/* ======================================================================
+   4. 流程控制
+   ====================================================================== */
+function startGame(){
+  // 上一局是通关 → 失败计数归零；否则继续累计
+  if (G.phase === 'win') G.fails = 0;
+
+  G.playerM = START_M; G.enemyM = START_M;
+  G.round = 1;
+  G.eyeUsed = false;
+  G.particles.length = 0; G.flights.length = 0; G.rings.length = 0;
+  G.shake = 0; G.flash = 0; G.result = null; G.overT = 0; G.panelShown = false;
+
+  // 伪随机：第 2/3 回合里随机一个「必输」，第 4~6 回合里随机一个「必输」
+  G.forcedA = pick([2,3]);
+  G.forcedB = pick([4,5,6]);
+
+  G.phase = 'playing';
+  overlay.className = 'overlay';
+  beginRound();
+  updateHud(true);
+  renderAction();
+}
+
+function beginRound(){
+  G.turn  = (G.round % 2 === 1) ? 'player' : 'enemy';
+  G.forced = (G.round === G.forcedA || G.round === G.forcedB);
+  G.bet = 0;
+  G.betRevealed = false;
+  G.playerGuess = null;
+  G.enemyGuess = null;
+  G.eyeThisRound = false;
+  G.result = null;
+  G.stepTimer = 0;
+  G.revealT = 0;
+  G.autoSide = '';
+
+  // 赌注不能超过任何一方的存量
+  G.betMax = clamp(Math.min(BET_MAX, G.playerM, G.enemyM), 1, BET_MAX);
+
+  // 坐庄方只剩 1 颗 → 对方自动选择「单数」
+  const bankerM = (G.turn === 'player') ? G.playerM : G.enemyM;
+  // 玩家坐庄时赌注是自己押的，本来就公开
+  if (G.turn === 'player') G.betRevealed = true;
+  G.lockAuto = (bankerM <= 1);
+
+  if (G.turn === 'player'){
+    G.bet = clamp(Math.round(G.betMax/2) || 1, 1, G.betMax);
+    G.step = 'playerBet';
+    if (G.lockAuto){
+      G.bet = 1;
+      G.enemyGuess = 'odd';       // 系统自动押「单」
+      G.autoSide = 'enemy';
+    }
+  } else {
+    G.step = 'playerGuess';
+    if (G.lockAuto){
+      G.bet = 1;                  // 庄家只剩 1 颗，赌注必为 1
+      G.playerGuess = 'odd';      // 玩家自动押「单」
+      G.autoSide = 'player';
+    }
+  }
+
+  updateHud();
+  renderAction();
+
+  if (G.lockAuto){
+    showToast(G.turn === 'player' ? '你只剩 1 颗 · 系统只押「单」' : '对手只剩 1 颗 · 你自动押「单」', 1500);
+  }
+}
+
+/* --- 玩家坐庄：确认赌注 --- */
+function confirmBet(){
+  if (G.step !== 'playerBet') return;
+  G.bet = clamp(G.bet, 1, G.betMax);   // 兜底：赌注不得越界
+  sfx('toss');
+  G.betRevealed = true;
+
+  if (G.lockAuto){
+    G.enemyGuess = 'odd';                 // 规则：对方自动选单数
+  } else if (G.forced){
+    // 作弊：系统直接猜中赌注的单双
+    G.enemyGuess = (G.bet % 2 === 1) ? 'odd' : 'even';
+  } else {
+    G.enemyGuess = Math.random() < .5 ? 'odd' : 'even';
+  }
+
+  G.step = 'enemyGuess';
+  G.stepTimer = 0;
+  renderAction();
+  // 押注弹珠飞向桌面
+  for (let i=0;i<Math.min(G.bet,10);i++) throwToTable(i, Math.min(G.bet,10));
+}
+
+/* --- 敌方坐庄：确定赌注（可能被强制） --- */
+function ensureBet(wantParity){
+  const pool = [];
+  for (let n=1;n<=G.betMax;n++){
+    if (!wantParity) pool.push(n);
+    else if ((n % 2 === 1) === (wantParity === 'odd')) pool.push(n);
+  }
+  if (!pool.length) pool.push(G.betMax);
+  G.bet = pick(pool);
+}
+
+/* --- 敌方坐庄：玩家猜 --- */
+function chooseGuess(parity){
+  if (G.step !== 'playerGuess') return;
+  if (G.lockAuto) parity = 'odd';       // 规则强制：对方自动选择「单数」
+  G.playerGuess = parity;
+
+  if (!G.bet){
+    // 赌注尚未揭示：作弊回合必须让玩家猜错（除非玩家已用上帝之眼锁定）
+    const cheat = (G.forced && !G.eyeThisRound);
+    ensureBet(cheat ? (parity === 'odd' ? 'even' : 'odd') : null);
+  }
+
+  G.betRevealed = true;
+  G.step = 'reveal';
+  G.stepTimer = 0;
+  G.revealT = 0;
+  sfx('reveal');
+  if (parity === 'odd') setTimeout(()=>sfx('odd'), 80); else setTimeout(()=>sfx('even'), 80);
+  renderAction();
+  for (let i=0;i<Math.min(G.bet,10);i++) throwToTable(i, Math.min(G.bet,10));
+}
+
+/* --- 上帝之眼 --- */
+function useEye(){
+  if (G.eyeUsed || G.turn !== 'enemy' || G.step !== 'playerGuess') return;
+  if (G.playerM > EYE_LIMIT) return;
+  G.eyeUsed = true;
+  G.eyeThisRound = true;
+  ensureBet(null);           // 提前锁定赌注
+  G.betRevealed = true;
+  sfx('eye');
+  G.flash = .42; G.flashColor = '170,130,255';
+  G.rings.push({ x:CX, y:258, r:8, max:130, life:1, c:'170,130,255' });
+  showToast('上帝之眼：对手押了 ' + G.bet + ' 颗', 1500);
+  renderAction();
+}
+
+/* --- 结算 --- */
+function doSettle(){
+  const parity = (G.bet % 2 === 1) ? 'odd' : 'even';
+  let playerWin;
+
+  if (G.turn === 'player'){
+    playerWin = (G.enemyGuess !== parity);      // 系统猜错 → 玩家赢
+  } else {
+    playerWin = (G.playerGuess === parity);     // 玩家猜对 → 玩家赢
+  }
+
+  // 实际转移量不得超过输家手里的颗数（保证总数守恒、不出现负值）
+  const d = Math.min(G.bet, playerWin ? G.enemyM : G.playerM);
+  if (playerWin){ G.playerM += d; G.enemyM -= d; }
+  else { G.playerM -= d; G.enemyM += d; }
+
+  G.result = { win:playerWin, delta:d, parity:parity };
+  G.step = 'settle';
+  G.stepTimer = 0;
+
+  // 弹珠从输家飞向赢家
+  const fromY = playerWin ? 228 : 288;
+  const toY   = playerWin ? 300 : 218;
+  for (let i=0;i<Math.min(d,8);i++){
+    G.flights.push({
+      x: CX + (Math.random()-.5)*46, y: fromY,
+      tx: CX + (Math.random()-.5)*46, ty: toY,
+      t: -i*0.055, dur: .52,
+      c: playerWin ? pick(E_MARBLE) : pick(P_MARBLE),
+      r: 3.4,
+    });
+  }
+
+  if (playerWin){
+    sfx('gain');
+    G.shake = 5;
+    G.flash = .2; G.flashColor = '95,240,216';
+    burst(CX, 258, 16, ['#5ff0d8','#ffd166','#ffffff'], 150);
+  } else {
+    sfx('lose');
+    G.shake = 9;
+    G.flash = .28; G.flashColor = '255,60,90';
+    burst(CX, 258, 16, ['#ff3d63','#ff9f43','#ff9dc0'], 150);
+  }
+
+  let resMsg;
+  if (G.turn === 'player'){
+    resMsg = playerWin ? ('对手猜错 · 你赢 ' + d + ' 颗') : ('对手猜对 · 你输 ' + d + ' 颗');
+  } else {
+    resMsg = playerWin ? ('你猜对 · 赢下 ' + d + ' 颗') : ('你猜错 · 失去 ' + d + ' 颗');
+  }
+  showToast(resMsg, 1000);
+
+  G.hudPulse.you = 1; G.hudPulse.foe = 1;
+  updateHud();
+  renderAction();
+
+  // 归零判定
+  if (G.enemyM <= 0){ G.enemyM = 0; endGame('win'); }
+  else if (G.playerM <= 0){ G.playerM = 0; endGame('lose'); }
+}
+
+function nextRound(){
+  if (G.phase !== 'playing') return;
+  G.round++;
+  beginRound();
+  updateHud();
+}
+
+function endGame(who){
+  G.phase = who;
+  G.overT = 0;
+  G.panelShown = false;
+  G.step = 'over';
+  if (who === 'win'){
+    sfx('win');
+    for (let i=0;i<26;i++){
+      G.particles.push({
+        x: CX + (Math.random()-.5)*220, y: 120 + Math.random()*240,
+        vx: (Math.random()-.5)*60, vy: -40 - Math.random()*110,
+        g: 62, life: 1.4 + Math.random(), max: 2.4,
+        w: 2 + Math.random()*3, h: 2 + Math.random()*3,
+        rot: Math.random()*6.28, vr: (Math.random()-.5)*8,
+        c: pick(['#ffd166','#5ff0d8','#ff9dc0','#fff3e2']),
+      });
+    }
+    G.flash = .5; G.flashColor = '255,225,160';
+  } else {
+    sfx('dead');
+    G.shake = 16;
+    G.flash = .55; G.flashColor = '255,40,70';
+    for (let i=0;i<24;i++){
+      G.particles.push({
+        x: CX + (Math.random()-.5)*190, y: 300 + Math.random()*120,
+        vx: (Math.random()-.5)*130, vy: -50 - Math.random()*110,
+        g: 260, life: .9 + Math.random()*.6, max: 1.5,
+        w: 3 + Math.random()*3, h: 3 + Math.random()*3,
+        rot: Math.random()*6.28, vr: (Math.random()-.5)*14,
+        c: pick(P_MARBLE), round: true,
+      });
+    }
+  }
+  G.fails += (who === 'lose') ? 1 : 0;
+  updateHud(true);
+  renderAction();
+}
+
+/* ======================================================================
+   5. 粒子 / 飞行
+   ====================================================================== */
+function burst(x, y, n, colors, spd){
+  for (let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, s = (0.3 + Math.random()) * spd;
+    G.particles.push({
+      x:x, y:y, vx:Math.cos(a)*s, vy:Math.sin(a)*s - 30,
+      g:190, life:.45 + Math.random()*.5, max:.95,
+      w:2 + Math.random()*3, h:2 + Math.random()*3,
+      rot:Math.random()*6.28, vr:(Math.random()-.5)*16,
+      c: colors[(Math.random()*colors.length)|0],
+    });
+  }
+}
+
+function throwToTable(i, total){
+  const fromY = (G.turn === 'enemy') ? 218 : 302, toY = 262;
+  const x0 = CX + (i - (total-1)/2) * 9;
+  G.flights.push({
+    x:x0, y:fromY, tx:CX + (Math.random()-.5)*10, ty:toY + (Math.random()-.5)*8,
+    t:-i*0.03, dur:.34, c: pick(P_MARBLE), r:3.2,
+  });
+}
+
+/* ======================================================================
+   6. 更新
+   ====================================================================== */
+function update(dt){
+  G.t += dt;
+  if (G.shake > 0) G.shake = Math.max(0, G.shake - dt*26);
+  if (G.flash > 0) G.flash = Math.max(0, G.flash - dt*2.1);
+
+  // 粒子
+  for (let i=G.particles.length-1;i>=0;i--){
+    const p = G.particles[i];
+    p.vy += p.g * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.rot += p.vr * dt;
+    p.life -= dt;
+    if (p.life <= 0) G.particles.splice(i,1);
+  }
+  // 飞行弹珠
+  for (let i=G.flights.length-1;i>=0;i--){
+    const f = G.flights[i];
+    f.t += dt;
+    if (f.t >= f.dur) G.flights.splice(i,1);
+  }
+  // 光环
+  for (let i=G.rings.length-1;i>=0;i--){
+    const r = G.rings[i];
+    r.life -= dt * 1.5;
+    r.r += (r.max - r.r) * dt * 4.2;
+    if (r.life <= 0) G.rings.splice(i,1);
+  }
+
+  G.hudPulse.you = Math.max(0, G.hudPulse.you - dt*3);
+  G.hudPulse.foe = Math.max(0, G.hudPulse.foe - dt*3);
+
+  if (G.phase !== 'playing'){
+    G.overT += dt;
+    // 胜利后持续洒彩带
+    if (G.phase === 'win' && G.overT < 3.4){
+      G.confettiT = (G.confettiT || 0) + dt;
+      if (G.confettiT > .11){
+        G.confettiT = 0;
+        G.particles.push({
+          x: CX + (Math.random()-.5)*300, y: -10,
+          vx: (Math.random()-.5)*36, vy: 30 + Math.random()*60,
+          g: 12, life: 2.6 + Math.random()*1.2, max: 3.8,
+          w: 2 + Math.random()*4, h: 3 + Math.random()*5,
+          rot: Math.random()*6.28, vr: (Math.random()-.5)*9,
+          c: pick(['#ffd166','#5ff0d8','#ff9dc0','#fff3e2','#ff8f6b']),
+        });
+      }
+    }
+    return;
+  }
+
+  // 阶段推进
+  if (G.step === 'enemyGuess'){
+    G.stepTimer += dt;
+    if (G.stepTimer > T_AI_THINK){
+      G.step = 'reveal'; G.stepTimer = 0; G.revealT = 0;
+      sfx('reveal');
+    }
+  }
+  else if (G.step === 'reveal'){
+    G.stepTimer += dt;
+    G.revealT = clamp(G.stepTimer / .32, 0, 1);
+    if (G.stepTimer > T_REVEAL) doSettle();
+  }
+  else if (G.step === 'settle'){
+    G.stepTimer += dt;
+    if (G.stepTimer > T_SETTLE) nextRound();
+  }
+}
+
+/* ======================================================================
+   7. 绘制
+   ====================================================================== */
+function drawMarble(x, y, r, color, glow){
+  // 落影
+  ctx.fillStyle = 'rgba(0,0,0,.34)';
+  ctx.beginPath(); ctx.ellipse(x, y + r*0.9, r*0.88, r*0.4, 0, 0, 6.2832); ctx.fill();
+
+  if (glow){
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const gg = ctx.createRadialGradient(x, y, r*0.4, x, y, r*3);
+    gg.addColorStop(0, 'rgba(255,255,255,.35)');
+    gg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gg;
+    ctx.beginPath(); ctx.arc(x, y, r*3, 0, 6.2832); ctx.fill();
+    ctx.restore();
+  }
+
+  // 球体
+  const g = ctx.createRadialGradient(x - r*0.34, y - r*0.4, r*0.08, x, y, r*1.02);
+  g.addColorStop(0, '#ffffff');
+  g.addColorStop(.3, shade(color, .35));
+  g.addColorStop(.72, color);
+  g.addColorStop(1, shade(color, -.52));
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill();
+
+  // 内圈反光
+  ctx.strokeStyle = 'rgba(255,255,255,.28)';
+  ctx.lineWidth = .7;
+  ctx.beginPath(); ctx.arc(x, y, r*0.62, Math.PI*.86, Math.PI*1.72); ctx.stroke();
+
+  // 高光点
+  ctx.fillStyle = 'rgba(255,255,255,.92)';
+  ctx.beginPath(); ctx.arc(x - r*0.33, y - r*0.38, r*0.26, 0, 6.2832); ctx.fill();
+}
+
+function drawBg(){
+  // 墙
+  const wg = ctx.createLinearGradient(0, 0, 0, HORIZON);
+  wg.addColorStop(0, '#120a1c');
+  wg.addColorStop(.62, '#1d1029');
+  wg.addColorStop(1, '#2a1734');
+  ctx.fillStyle = wg;
+  ctx.fillRect(0, 0, W, HORIZON);
+
+  // 墙面裂纹
+  ctx.strokeStyle = 'rgba(0,0,0,.3)';
+  ctx.lineWidth = 1;
+  for (let i=0;i<5;i++){
+    const x0 = 28 + i*76;
+    ctx.beginPath();
+    ctx.moveTo(x0, 92);
+    ctx.lineTo(x0 + 9, 122);
+    ctx.lineTo(x0 + 3, 156);
+    ctx.lineTo(x0 + 14, 190);
+    ctx.stroke();
+  }
+
+  // 地面
+  const fg = ctx.createLinearGradient(0, HORIZON, 0, H);
+  fg.addColorStop(0, '#2b1832');
+  fg.addColorStop(.4, '#1d1024');
+  fg.addColorStop(1, '#0b0612');
+  ctx.fillStyle = fg;
+  ctx.fillRect(0, HORIZON, W, H - HORIZON);
+
+  // 地平线亮边
+  ctx.fillStyle = 'rgba(255,150,190,.14)';
+  ctx.fillRect(0, HORIZON, W, 1.6);
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  ctx.fillRect(0, HORIZON + 1.6, W, 3);
+
+  // 地面网格（透视）
+  ctx.strokeStyle = 'rgba(255,150,190,.055)';
+  ctx.lineWidth = 1;
+  for (let i=0;i<=8;i++){
+    const x = -140 + i*80;
+    ctx.beginPath();
+    ctx.moveTo(CX + (x - CX)*0.17, HORIZON);
+    ctx.lineTo(x, H);
+    ctx.stroke();
+  }
+  for (let i=1;i<=6;i++){
+    const t = i/6, y = HORIZON + Math.pow(t, 1.9) * (H - HORIZON);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // 中央聚光
+  const sp = ctx.createRadialGradient(CX, 250, 20, CX, 250, 235);
+  sp.addColorStop(0, 'rgba(255,190,150,.1)');
+  sp.addColorStop(.55, 'rgba(255,120,170,.045)');
+  sp.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sp;
+  ctx.fillRect(0, 0, W, H);
+
+  // 暗角
+  const vg = ctx.createRadialGradient(CX, 300, 130, CX, 300, 400);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,.66)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawEnemy(){
+  const bob = Math.sin(G.t * 1.7) * 1.4;
+  const hy = 116 + bob;
+
+  // 身体（西装）
+  ctx.fillStyle = '#171320';
+  ctx.beginPath();
+  ctx.moveTo(CX - 50, 190);
+  ctx.lineTo(CX - 42, 150);
+  ctx.quadraticCurveTo(CX, 132, CX + 42, 150);
+  ctx.lineTo(CX + 50, 190);
+  ctx.closePath();
+  ctx.fill();
+
+  // 肩线高光
+  ctx.strokeStyle = 'rgba(140,120,180,.35)';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(CX - 42, 150);
+  ctx.quadraticCurveTo(CX, 132, CX + 42, 150);
+  ctx.stroke();
+
+  // 衬衫 V 领
+  ctx.fillStyle = '#2c2438';
+  ctx.beginPath();
+  ctx.moveTo(CX - 15, 140);
+  ctx.lineTo(CX, 186);
+  ctx.lineTo(CX + 15, 140);
+  ctx.closePath();
+  ctx.fill();
+  // 领带
+  ctx.fillStyle = '#4a1226';
+  ctx.beginPath();
+  ctx.moveTo(CX, 152); ctx.lineTo(CX - 4, 160);
+  ctx.lineTo(CX, 184); ctx.lineTo(CX + 4, 160);
+  ctx.closePath(); ctx.fill();
+
+  // 西装手臂（垂在身侧）
+  ctx.fillStyle = '#151120';
+  ctx.beginPath();
+  ctx.moveTo(CX - 44, 156); ctx.lineTo(CX - 59, 162);
+  ctx.lineTo(CX - 62, 192); ctx.lineTo(CX - 48, 192);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(CX + 44, 156); ctx.lineTo(CX + 59, 162);
+  ctx.lineTo(CX + 62, 192); ctx.lineTo(CX + 48, 192);
+  ctx.closePath(); ctx.fill();
+  // 袖口
+  ctx.fillStyle = '#0d0a14';
+  ctx.fillRect(CX - 62, 186, 14, 6.5);
+  ctx.fillRect(CX + 48, 186, 14, 6.5);
+  // 手
+  ctx.fillStyle = '#c9a982';
+  ctx.beginPath(); ctx.arc(CX - 55, 194, 4.6, 0, 6.2832); ctx.fill();
+  ctx.beginPath(); ctx.arc(CX + 55, 194, 4.6, 0, 6.2832); ctx.fill();
+
+  // 兜帽阴影
+  ctx.fillStyle = '#0a0710';
+  ctx.beginPath(); ctx.arc(CX, hy, 25, 0, 6.2832); ctx.fill();
+
+  // 面具
+  const mg = ctx.createRadialGradient(CX - 4, hy - 7, 3, CX, hy, 22);
+  mg.addColorStop(0, '#fbf6ec');
+  mg.addColorStop(.72, '#ded5c6');
+  mg.addColorStop(1, '#a89c8c');
+  ctx.fillStyle = mg;
+  ctx.beginPath();
+  ctx.ellipse(CX, hy, 18.5, 21, 0, 0, 6.2832);
+  ctx.fill();
+
+  // 面具上的几何符号（○ △ □）
+  ctx.strokeStyle = '#2a1f2e';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(CX, hy - 8.5, 3.4, 0, 6.2832); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(CX, hy + 1); ctx.lineTo(CX - 3.6, hy + 7.4); ctx.lineTo(CX + 3.6, hy + 7.4);
+  ctx.closePath(); ctx.stroke();
+  const dx = 7.6;
+  ctx.strokeRect(CX - dx - 2, hy + 6, 4, 4);
+  ctx.strokeRect(CX + dx - 2, hy + 6, 4, 4);
+
+  // 面具暗部高光
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.beginPath(); ctx.ellipse(CX - 6, hy - 9, 4, 6, -.4, 0, 6.2832); ctx.fill();
+
+  // 眼睛后的红光（坐庄时）
+  if (G.turn === 'enemy' && G.phase === 'playing'){
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const p = .5 + Math.sin(G.t*3)*.25;
+    ctx.fillStyle = 'rgba(255,60,90,' + (p*.28).toFixed(2) + ')';
+    ctx.beginPath(); ctx.arc(CX, hy + 2, 26, 0, 6.2832); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawPlayer(){
+  const bob = Math.sin(G.t * 1.7 + 1.1) * 1.4;
+  const hy = 370 + bob;
+
+  // 身体（绿色运动服）
+  ctx.fillStyle = '#17867c';
+  ctx.beginPath();
+  ctx.moveTo(CX - 48, 448);
+  ctx.lineTo(CX - 38, 398);
+  ctx.quadraticCurveTo(CX, 382, CX + 38, 398);
+  ctx.lineTo(CX + 48, 448);
+  ctx.closePath();
+  ctx.fill();
+
+  // 背中缝
+  ctx.strokeStyle = 'rgba(0,0,0,.28)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(CX, 390); ctx.lineTo(CX, 446); ctx.stroke();
+
+  // 肩部高光
+  ctx.strokeStyle = 'rgba(120,255,230,.42)';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(CX - 38, 398);
+  ctx.quadraticCurveTo(CX, 382, CX + 38, 398);
+  ctx.stroke();
+
+  // 号码布
+  ctx.fillStyle = '#f8f4ea';
+  ctx.fillRect(CX - 13, 410, 26, 17);
+  ctx.fillStyle = '#1c6b64';
+  ctx.fillRect(CX - 8, 415, 4, 8);
+  ctx.fillRect(CX + 5, 415, 4, 8);
+
+  // 手臂（垂在身侧，背对镜头）
+  ctx.fillStyle = '#157d74';
+  ctx.beginPath();
+  ctx.moveTo(CX - 40, 400); ctx.lineTo(CX - 56, 406);
+  ctx.lineTo(CX - 59, 446); ctx.lineTo(CX - 44, 446);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(CX + 40, 400); ctx.lineTo(CX + 56, 406);
+  ctx.lineTo(CX + 59, 446); ctx.lineTo(CX + 44, 446);
+  ctx.closePath(); ctx.fill();
+  // 袖口白条
+  ctx.fillStyle = '#e9e1d2';
+  ctx.fillRect(CX - 59, 438, 14, 3);
+  ctx.fillRect(CX + 45, 438, 14, 3);
+  // 手
+  ctx.fillStyle = '#e8bf95';
+  ctx.beginPath(); ctx.arc(CX - 52, 449, 4.8, 0, 6.2832); ctx.fill();
+  ctx.beginPath(); ctx.arc(CX + 52, 449, 4.8, 0, 6.2832); ctx.fill();
+
+  // 后脑
+  const hg = ctx.createRadialGradient(CX - 5, hy - 6, 3, CX, hy, 22);
+  hg.addColorStop(0, '#3a2438');
+  hg.addColorStop(.7, '#241428');
+  hg.addColorStop(1, '#140a18');
+  ctx.fillStyle = hg;
+  ctx.beginPath(); ctx.arc(CX, hy, 19, 0, 6.2832); ctx.fill();
+
+  // 发丝
+  ctx.strokeStyle = 'rgba(120,90,130,.35)';
+  ctx.lineWidth = 1;
+  for (let i=0;i<5;i++){
+    const a = Math.PI * (1.08 + i*0.2);
+    ctx.beginPath();
+    ctx.moveTo(CX + Math.cos(a)*6, hy + Math.sin(a)*6);
+    ctx.lineTo(CX + Math.cos(a)*18, hy + Math.sin(a)*18);
+    ctx.stroke();
+  }
+
+  // 顶部轮廓光
+  ctx.strokeStyle = 'rgba(95,240,216,.5)';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(CX, hy, 19, Math.PI*1.15, Math.PI*1.9); ctx.stroke();
+
+  // 后颈
+  ctx.fillStyle = '#e8bf95';
+  ctx.beginPath(); ctx.ellipse(CX, hy + 17, 7, 4.5, 0, 0, Math.PI); ctx.fill();
+}
+
+function drawPile(cx, baseY, n, dir, colors){
+  const perRow = 10, gap = 9.4, r = 3.5;
+  for (let i=0;i<n;i++){
+    const row = Math.floor(i / perRow);
+    const col = i % perRow;
+    const rowN = Math.min(perRow, n - row*perRow);
+    const x = cx - (rowN - 1) * gap / 2 + col * gap;
+    const y = baseY + dir * row * 9.2;
+    drawMarble(x, y, r, colors[i % colors.length], false);
+  }
+}
+
+function drawScatter(){
+  const spots = [[62,246,3.4],[296,232,3.0],[84,352,3.6],[288,376,3.2],[46,470,3.0],[318,462,3.4],[36,200,2.8],[326,196,3.0]];
+  for (const [x,y,r] of spots){
+    ctx.save();
+    ctx.globalAlpha = .17;
+    drawMarble(x, y, r, '#9b8fb8', false);
+    ctx.restore();
+  }
+}
+
+function drawStakes(){
+  // 中央桌面：押注的弹珠
+  const d = G.bet;
+
+  // 敌方坐庄且赌注尚未摊开 —— 显示未知
+  if (d <= 0){
+    if (G.phase !== 'playing' || G.turn !== 'enemy') return;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 30px ui-monospace,monospace';
+    ctx.fillStyle = 'rgba(255,157,192,.5)';
+    const pulse = .5 + Math.sin(G.t*3)*.3;
+    ctx.shadowColor = 'rgba(255,46,99,' + (pulse*.7).toFixed(2) + ')';
+    ctx.shadowBlur = 14;
+    ctx.fillText('?', CX, 266);
+    ctx.shadowBlur = 0;
+    ctx.font = 'bold 10px ui-monospace,monospace';
+    ctx.fillStyle = 'rgba(229,200,214,.55)';
+    ctx.fillText('对手握着拳 · 赌注未知', CX, 288);
+    ctx.restore();
+    return;
+  }
+
+  const isEnemy = (G.turn === 'enemy');
+  const r = 6.4, gap = 15.4;
+  const y0 = 262;
+
+  const reveal = G.betRevealed ? clamp((G.step === 'reveal' ? G.revealT : 1), 0, 1) : 0;
+
+  // 猜方标签（谁在猜）
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 10px ui-monospace,monospace';
+  if (!isEnemy && G.enemyGuess){
+    ctx.fillStyle = 'rgba(255,157,192,.92)';
+    ctx.fillText('对手猜 · ' + (G.enemyGuess === 'odd' ? '单' : '双'), CX, 238);
+  } else if (isEnemy && G.playerGuess && G.betRevealed){
+    ctx.fillStyle = 'rgba(126,242,223,.92)';
+    ctx.fillText('你猜 · ' + (G.playerGuess === 'odd' ? '单' : '双'), CX, 238);
+  }
+  ctx.restore();
+
+  for (let i=0;i<d;i++){
+    const x = CX - (d - 1) * gap / 2 + i * gap;
+    const appear = clamp((reveal - i*0.03) / .4, 0, 1);
+    if (appear <= 0 && !G.betRevealed) {
+      ctx.fillStyle = 'rgba(120,100,140,.22)';
+      ctx.beginPath(); ctx.arc(x, y0, r*0.9, 0, 6.2832); ctx.fill();
+      ctx.strokeStyle = 'rgba(180,160,200,.28)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(x, y0, r*0.9, 0, 6.2832); ctx.stroke();
+      continue;
+    }
+    const sc = 0.45 + 0.55 * clamp(appear, 0, 1);
+    ctx.save();
+    ctx.translate(x, y0);
+    ctx.scale(sc, sc);
+    drawMarble(0, 0, r, (isEnemy ? E_MARBLE : P_MARBLE)[i % 5], true);
+    ctx.restore();
+  }
+
+  // 单双判定只在开奖之后揭晓
+  if ((G.step === 'reveal' || G.step === 'settle') && d > 0){
+    const parity = (d % 2 === 1) ? 'odd' : 'even';
+    const a = clamp((G.step === 'reveal' ? G.revealT*1.6 : 1), 0, 1);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 14px ui-monospace,monospace';
+    ctx.fillStyle = parity === 'odd' ? '#ffb765' : '#7ef2df';
+    ctx.shadowColor = parity === 'odd' ? 'rgba(255,159,67,.9)' : 'rgba(34,201,180,.9)';
+    ctx.shadowBlur = 12;
+    ctx.fillText((parity === 'odd' ? '单' : '双') + ' · ' + d + ' 颗', CX, 297);
+    ctx.restore();
+  }
+}
+
+function drawTurnBanner(){
+  if (G.phase !== 'playing') return;
+  const isP = (G.turn === 'player');
+  const bx = isP ? CX + 31 : CX + 35;
+  const by = isP ? 360 : 100;
+  const p = .5 + Math.sin(G.t*3)*.5;
+
+  // 坐庄方身后一圈暖光
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const cy = isP ? 408 : 150;
+  const gg = ctx.createRadialGradient(CX, cy, 12, CX, cy, 96);
+  gg.addColorStop(0, 'rgba(255,209,102,' + (.09 + p*.07).toFixed(3) + ')');
+  gg.addColorStop(1, 'rgba(255,209,102,0)');
+  ctx.fillStyle = gg;
+  ctx.beginPath(); ctx.arc(CX, cy, 96, 0, 6.2832); ctx.fill();
+  ctx.restore();
+
+  // 「庄」徽章
+  ctx.save();
+  ctx.beginPath(); ctx.arc(bx, by, 9.2, 0, 6.2832);
+  ctx.fillStyle = 'rgba(255,209,102,' + (.82 + p*.18).toFixed(2) + ')';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(60,36,6,.9)';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  ctx.fillStyle = '#2a1a06';
+  ctx.font = 'bold 10px ui-monospace,monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('庄', bx, by + .5);
+  ctx.restore();
+  ctx.textBaseline = 'alphabetic';
+}
+
+function drawEndGlow(){
+  if (G.phase !== 'win' && G.phase !== 'lose') return;
+  const isWin = (G.phase === 'win');
+  const p = clamp(G.overT / .45, 0, 1);
+  const pulse = .78 + Math.sin(G.t*3.4)*.22;
+  const cy = 400;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  if (isWin){
+    const g = ctx.createRadialGradient(CX, cy, 10, CX, cy, 150*pulse);
+    g.addColorStop(0, 'rgba(255,225,150,' + (.36*p).toFixed(3) + ')');
+    g.addColorStop(.45, 'rgba(255,185,95,' + (.14*p).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(255,160,60,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(CX, cy, 155, 0, 6.2832); ctx.fill();
+
+    // 上升的光柱
+    const bg = ctx.createLinearGradient(0, 470, 0, 250);
+    bg.addColorStop(0, 'rgba(255,215,130,' + (.16*p).toFixed(3) + ')');
+    bg.addColorStop(1, 'rgba(255,215,130,0)');
+    ctx.fillStyle = bg;
+    ctx.beginPath();
+    ctx.moveTo(CX - 26, 470); ctx.lineTo(CX + 26, 470);
+    ctx.lineTo(CX + 92, 240); ctx.lineTo(CX - 92, 240);
+    ctx.closePath(); ctx.fill();
+  } else {
+    const g = ctx.createRadialGradient(CX, cy, 10, CX, cy, 150*pulse);
+    g.addColorStop(0, 'rgba(255,40,70,' + (.3*p).toFixed(3) + ')');
+    g.addColorStop(.55, 'rgba(200,20,50,' + (.12*p).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(255,40,70,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(CX, cy, 155, 0, 6.2832); ctx.fill();
+
+    // 全屏红色压边
+    const vg = ctx.createRadialGradient(CX, 320, 120, CX, 320, 380);
+    vg.addColorStop(0, 'rgba(140,10,30,0)');
+    vg.addColorStop(1, 'rgba(150,8,28,' + (.5*p).toFixed(3) + ')');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
+  ctx.restore();
+}
+
+function drawParticles(){
+  for (const p of G.particles){
+    const a = clamp(p.life / p.max * 1.6, 0, 1);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.fillStyle = p.c;
+    if (p.round){
+      ctx.beginPath(); ctx.arc(0, 0, p.w/2, 0, 6.2832); ctx.fill();
+    } else {
+      ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+    }
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
+  for (const f of G.flights){
+    if (f.t < 0) continue;
+    const k = clamp(f.t / f.dur, 0, 1);
+    const e = k*k*(3-2*k);
+    const x = f.x + (f.tx - f.x) * e;
+    const y = f.y + (f.ty - f.y) * e - Math.sin(k*Math.PI) * 26;
+    ctx.globalAlpha = 1 - Math.pow(k, 6);
+    drawMarble(x, y, f.r, f.c, false);
+    ctx.globalAlpha = 1;
+  }
+
+  for (const r of G.rings){
+    const a = clamp(r.life, 0, 1);
+    ctx.strokeStyle = 'rgba(' + r.c + ',' + (a*.7).toFixed(3) + ')';
+    ctx.lineWidth = 2 + a*2;
+    ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, 6.2832); ctx.stroke();
+  }
+}
+
+function render(){
+  ctx.setTransform(RS, 0, 0, RS, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  if (G.shake > 0){
+    ctx.translate((Math.random()-.5)*G.shake, (Math.random()-.5)*G.shake);
+  }
+
+  drawBg();
+
+  // 输掉的一方沉下去、暗下去
+  if (G.phase === 'win'){
+    ctx.save();
+    ctx.globalAlpha = clamp(1 - G.overT*0.75, .22, 1);
+    ctx.translate(0, Math.min(10, G.overT*11));
+    drawEnemy();
+    ctx.restore();
+  } else {
+    drawEnemy();
+  }
+
+  if (G.phase === 'lose'){
+    ctx.save();
+    ctx.globalAlpha = clamp(1 - G.overT*0.75, .22, 1);
+    ctx.translate(0, Math.min(10, G.overT*11));
+    drawPlayer();
+    ctx.restore();
+  } else {
+    drawPlayer();
+  }
+
+  // 弹珠堆
+  drawPile(CX, 200, G.enemyM, -1, E_MARBLE);
+  drawPile(CX, 310, G.playerM, 1, P_MARBLE);
+
+  drawScatter();
+  drawStakes();
+  drawTurnBanner();
+  drawEndGlow();
+  drawParticles();
+
+  // 全屏闪光
+  if (G.flash > 0){
+    ctx.fillStyle = 'rgba(' + G.flashColor + ',' + (G.flash*.5).toFixed(3) + ')';
+    ctx.fillRect(-20, -20, W+40, H+40);
+  }
+
+  // 扫描线
+  ctx.fillStyle = 'rgba(0,0,0,.085)';
+  for (let y=0;y<H;y+=4) ctx.fillRect(0, y, W, 1);
+}
+
+/* ======================================================================
+   8. UI
+   ====================================================================== */
+function updateHud(pulse){
+  roundVal.textContent = G.round;
+  youVal.textContent = G.playerM;
+  foeVal.textContent = G.enemyM;
+  failVal.textContent = G.fails;
+  youVal.classList.toggle('low', G.playerM <= 3);
+  foeVal.classList.toggle('low', G.enemyM <= 3);
+  if (pulse){
+    youVal.classList.remove('bump'); foeVal.classList.remove('bump');
+    void youVal.offsetWidth;
+    youVal.classList.add('bump'); foeVal.classList.add('bump');
+  }
+}
+
+function renderAction(){
+  let html = '';
+
+  if (G.phase !== 'playing'){ actionEl.innerHTML = ''; actionEl.classList.remove('on'); return; }
+
+  if (G.step === 'playerBet'){
+    const hint = G.lockAuto
+      ? '你只剩 1 颗 · 系统只会猜「单」'
+      : '赌注上限 ' + G.betMax + ' 颗';
+    html =
+      '<div class="act-title">你坐庄 · 押上赌注</div>' +
+      '<div class="bet-row">' +
+        '<button class="step-btn" data-act="minus"' + (G.bet<=1||G.lockAuto?' disabled':'') + '>&minus;</button>' +
+        '<div class="bet-val"><b>' + G.bet + '</b><i>颗</i></div>' +
+        '<button class="step-btn" data-act="plus"' + (G.bet>=G.betMax||G.lockAuto?' disabled':'') + '>+</button>' +
+      '</div>' +
+      '<button class="main-btn" data-act="bet">押上 ' + G.bet + ' 颗</button>' +
+      '<div class="act-hint' + (G.lockAuto?' warn':'') + '">' + hint + '</div>';
+  }
+  else if (G.step === 'playerGuess'){
+    if (G.lockAuto){
+      // 对手仅剩 1 颗坐庄：规则强制你押「单」，没有选择余地
+      html =
+        '<div class="act-title">对手坐庄 · 你只能押「单」</div>' +
+        '<div class="guess-btn odd locked"><b>单</b><i>ODD</i></div>' +
+        '<button class="main-btn" data-guess="odd">开 牌</button>' +
+        '<div class="act-hint warn">坐庄方仅剩 1 颗 · 规则强制你选择「单」</div>';
+    } else {
+      const eyeOK = !G.eyeUsed && G.playerM <= EYE_LIMIT;
+      const hint = G.eyeThisRound
+        ? '已看穿：对手押了 <b>' + G.bet + '</b> 颗'
+        : '对手把弹珠握在手里，猜它的数量是单数还是双数';
+
+      html =
+        '<div class="act-title">对手坐庄 · 猜单双</div>' +
+        '<div class="guess-row">' +
+          '<button class="guess-btn odd" data-guess="odd"><b>单</b><i>ODD</i></button>' +
+          '<button class="guess-btn even" data-guess="even"><b>双</b><i>EVEN</i></button>' +
+        '</div>' +
+        (eyeOK ? '<button class="eye-btn" data-act="eye">◉ 上帝之眼 · 看穿赌注</button>' : '') +
+        '<div class="act-hint' + (G.eyeThisRound?'':'') + '">' + hint + '</div>';
+    }
+  }
+  else {
+    html = '';
+  }
+
+  actionEl.innerHTML = html;
+  actionEl.classList.toggle('on', html !== '');
+}
+
+actionEl.addEventListener('click', function(e){
+  const b = e.target.closest('button');
+  if (!b) return;
+
+  if (b.dataset.act === 'minus'){
+    if (G.bet > 1){ G.bet--; sfx('step'); renderAction(); }
+  } else if (b.dataset.act === 'plus'){
+    if (G.bet < G.betMax){ G.bet++; sfx('step'); renderAction(); }
+  } else if (b.dataset.act === 'bet'){
+    confirmBet();
+  } else if (b.dataset.act === 'eye'){
+    useEye();
+  } else if (b.dataset.guess){
+    chooseGuess(b.dataset.guess);
+  }
+});
+
+let toastTimer = null;
+function showToast(text, ms){
+  toastEl.textContent = text;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms || 1000);
+}
+
+/* --- 面板 --- */
+function bindPanel(){
+  overlay.querySelectorAll('button').forEach(b => {
+    b.addEventListener('click', () => {
+      const act = b.dataset.act;
+      if (act === 'start' || act === 'retry'){ sfx('click'); startGame(); }
+      else if (act === 'menu'){ location.href = 'index.html'; }
+    });
+  });
+}
+
+function showStartPanel(){
+  overlay.className = 'overlay show';
+  overlay.innerHTML =
+    '<div class="panel">' +
+      '<div class="panel-tag">STAGE 4</div>' +
+      '<div class="title">弹　珠</div>' +
+      '<p class="desc">双方各 <b>10</b> 颗弹珠，轮流坐庄。<br>' +
+        '坐庄时押上弹珠，对方猜<b>单双</b>；<br>' +
+        '猜中庄家赔，猜错庄家收。<br>' +
+        '<span style="color:#ff9dc0">一方弹珠归零，游戏结束。</span></p>' +
+      '<button class="btn" data-act="start">开始</button>' +
+      '<div class="hint">第 1 回合你坐庄 · 赌注最高 6 颗</div>' +
+      '<a class="back-link" href="index.html">‹ 返回选关</a>' +
+    '</div>';
+  bindPanel();
+}
+
+function showEndPanel(win){
+  overlay.className = 'overlay show';
+  overlay.innerHTML =
+    '<div class="panel' + (win ? ' teal' : '') + '">' +
+      '<div class="panel-tag">' + (win ? 'CLEAR' : 'GAME OVER') + '</div>' +
+      '<div class="title small">' + (win ? '你赢走了他的弹珠' : '你的弹珠输光了') + '</div>' +
+      '<p class="desc">' +
+        (win
+          ? '第 <b>' + G.round + '</b> 回合，对手的最后一颗弹珠归你。<br>'
+          : '第 <b>' + G.round + '</b> 回合，你手里一颗也不剩。<br>') +
+        '你的弹珠 <b class="num">' + G.playerM + '</b> 颗 · 对手 <b class="num">' + G.enemyM + '</b> 颗<br>' +
+        '累计失败次数 <b class="num">' + G.fails + '</b>' +
+      '</p>' +
+      '<div class="btn-row">' +
+        '<button class="btn ghost" data-act="menu">返回选关</button>' +
+        '<button class="btn' + (win ? ' teal' : '') + '" data-act="retry">再来一局</button>' +
+      '</div>' +
+      (win
+        ? '<a href="squid-game-5-glassbridge.html" style="display:inline-block;margin-top:1em;font-size:1.06em;letter-spacing:.18em;color:#ffb3cd;text-decoration:none;text-shadow:0 0 .7em rgba(255,120,160,.7);">下一关：玻璃桥 ›</a>'
+        : '<div class="hint">共 ' + G.round + ' 回合</div>') +
+    '</div>';
+  bindPanel();
+}
+
+/* ======================================================================
+   9. 主循环
+   ====================================================================== */
+let lastT = performance.now();
+function loop(now){
+  const dt = Math.min(.05, (now - lastT) / 1000);
+  lastT = now;
+  update(dt);
+  render();
+
+  if ((G.phase === 'win' || G.phase === 'lose') && !G.panelShown && G.overT > 1.35){
+    G.panelShown = true;
+    showEndPanel(G.phase === 'win');
+  }
+  requestAnimationFrame(loop);
+}
+
+fit();
+showStartPanel();
+requestAnimationFrame(loop);
+
+/* ======================================================================
+   调试钩子
+   ====================================================================== */
+window.__MG__ = {
+  G, start:startGame, bet:confirmBet, guess:chooseGuess, eye:useEye,
+  end:endGame, ensureBet, doSettle, beginRound, nextRound, renderAction, updateHud,
+  force:(a,b)=>{ G.forcedA=a; G.forcedB=b; },
+};
+})();
+</script>
+</body>
+</html>
